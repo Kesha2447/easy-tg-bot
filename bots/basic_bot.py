@@ -108,3 +108,25 @@ class TelegramBotParent:
         tread_handler.start()
 
 
+    def send(self, msg, chat_id, keyboard=None):
+        '''
+        Sending a message to a user or to a chat
+        ----------------------
+        msg: str - a message to be sent
+        chat_id: - the chat ID of the user or channel to send a message from the bot. You can pass a list.
+                   IMPORTANT: you can only send a message to a user who has written to the bot at least 1 time
+        keyboard: - The keyboard object that will be shown to the user
+        '''
+
+        try:
+            if isinstance(chat_id, str) or isinstance(chat_id, int):
+                chat_id = str(chat_id)
+                self.api.send_message(chat_id, str(msg), reply_markup=keyboard)
+            else:
+                for user_id in chat_id:
+                    self.api.send_message(user_id, str(msg), reply_markup=keyboard)
+        except:
+            print(f'''Failed to send message\nfile: {__file__}\nmsg: {msg}\nchat_id: {chat_id}\nkeyboard: {keyboard}''')
+
+
+
