@@ -7,6 +7,7 @@ import time
 import random
 import basic_bot
 from typing import List
+from dotenv import load_dotenv, find_dotenv
 
 
 class NotificationsBot(basic_bot.TelegramBotParent):
@@ -228,7 +229,15 @@ class BotWithKeyboard(ListenerBot):
 def test1(token:str) -> None:
     '''Sending notifications to specific users'''
 
+    users = ['571315321'] #usersID
+    telegram = NotificationsBot(token, users)
 
+    while True:
+        status_code = telegram.start('data.txt')
+        if status_code:
+            print(f'The test is over with the status code {status_code}')
+            break
+        time.sleep(1)
 
 
 def test2(token:str) -> None:
@@ -277,7 +286,9 @@ def test3(token:str) -> None:
 
 
 if __name__ == '__main__':
-    token = '1079547037:AAEgDk4U5CPiOnKr-ov7Wy6soduTzkD1UQE'
+    load_dotenv(find_dotenv())
+    token = os.getenv('TOKEN')
+
     test_num = input('Enter the test number (1-3) = ')
 
     if test_num.strip() == '1':

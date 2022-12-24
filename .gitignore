@@ -128,8 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Мои фильтры
+# My
 *.wp[ru]
-configs/
-*.dxd
 .swp

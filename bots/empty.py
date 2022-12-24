@@ -8,6 +8,6 @@ import basic_bot
 class Empty_bot(basic_bot.TelegramBotParent):
     '''A class created using the library https://github.com/Kesha2447/easy-tg-bot'''
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, token):
+        super().__init__(token)
 

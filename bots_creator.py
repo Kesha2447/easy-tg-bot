@@ -11,8 +11,12 @@ from typing import List
 class NotificationsFunctional:
     '''Contains methods for creating a bot that will send notifications'''
 
-    @staticmethod
-    def _notifications_functional(db_cursor, log, **kwargs) -> str:
+    def __init__(self, db_cursor, log):
+        self.db_cursor = db_cursor
+        self.log = log
+
+
+    def functional(self, **kwargs) -> str:
         '''
         Adding the logic of sending notifications to certain users to the class being created.
         ----------------------
@@ -31,6 +35,8 @@ class NotificationsFunctional:
 
         try:
             users_type = kwargs.get('users_type')
+            if users_type is None:
+                users_type = 0
 
             accesses = kwargs.get('accesses')
             if accesses is None:
@@ -62,35 +68,56 @@ class NotificationsFunctional:
                 init_code += ' '*8 + 'self.users = ' + str(users) + '\n'
 
             elif users_type == 2:
-                response = db_cursor.execute('SELECT code FROM fragments WHERE id = "user_list_func"').fetchone()
-                init_code += response[0].format(own_code=users)
+                init_code += self.get_code('user_list_func').format(own_code=users)
 
             notif_func = kwargs.get('notif_func')
+
             if not notif_func is None:
                 unformatted_code = ''
-                response = db_cursor.execute('SELECT code FROM fragments WHERE id = "trigger"').fetchone()
 
                 notif_args = kwargs.get('notif_func_args', [[], {}])
+
+                end_args = ''
+                if '*args' in notif_args[0]:
+                    notif_args[0].remove('*args')
+                    end_args += ', *args'
+
+                if '**kwargs' in notif_args[0]:
+                    notif_args[0].remove('**kwargs')
+                    end_args += ', **kwargs'
+
                 notif_args_text = ', '.join(['self'] + notif_args[0])
 
                 for key in notif_args[1]:
                     default = notif_args[1][key]
                     notif_args_text += f', {key} = {default}'
 
+                notif_args_text += end_args
+
                 notif_func = notif_func.replace('\t', '    ')
                 for line in notif_func.split('\n'):
                     unformatted_code += ' '*8 + line + '\n'
 
-                code = response[0].format(own_code=unformatted_code, notif_args=notif_args_text)
+                code = self.get_code('trigger').format(own_code=unformatted_code, notif_args=notif_args_text)
 
             return {'init': init_code, 'code': code}
 
         except AssertionError:
-            log('AssertionError in MotherBot._notifications_functional\n', exc_info=True)
+            self.log('AssertionError in MotherBot._notifications_functional\n', exc_info=True)
             print('Incorrect data is entered, the _notifications_functional method cannot be executed')
             input('Make sure the data is correct and try again')
             sys.exit(1)
 
+
+    def get_code(self, code_id):
+        '''Get the code from the database'''
+
+        try:
+            response = self.db_cursor.execute(f'SELECT code FROM fragments WHERE id = "{code_id}"').fetchone()
+            return response[0]
+        except sqlite3.Error as err:
+            input('Error:' + str(err) + '\n\nPress any button')
+            sys.exit(code=1)
 
 
 class MotherBot:
@@ -100,16 +127,19 @@ class MotherBot:
         self.add_database()
         self.log = loger.error
 
+        self.notifications = NotificationsFunctional(self.db_cursor, self.log)
+
 
     def add_database(self) -> None:
         '''Opening the database with code fragments for further use'''
 
         try:
-            self.connect = sqlite3.connect('database/сode_fragments.sqlite')
+            path = os.path.dirname(__file__)
+            self.connect = sqlite3.connect(path + '/database/сode_fragments.sqlite')
             self.db_cursor = self.connect.cursor()
 
-        except sqlite3.Error:
-            input('Error:' + sqlite3.Error + '\n\nPress any button')
+        except sqlite3.Error as err:
+            input('Error:' + str(err) + '\n\nPress any button')
             sys.exit(code=1)
 
 
@@ -147,14 +177,17 @@ class MotherBot:
                 _modules_text += 'import ' + module + '\n'
             modules = _modules_text
 
-        elif not isinstance(modules, str):
+        elif isinstance(modules, str):
+            modules += '\n'
+
+        else:
             modules = ''
             print('WARNING: Invalid data type, modules were not imported')
 
         #Init_code
         init_code = kwargs.get('init_code')
         if init_code is None:
-            init_code = self.db_cursor.execute('SELECT code FROM fragments WHERE id = "def_init"').fetchone()[0]
+            init_code = self.notifications.get_code('def_init')
         else:
             init_code = self._format_code(init_code, 4)
 
@@ -162,7 +195,7 @@ class MotherBot:
 
         #init args
         init_args = kwargs.get('init_args', [[], {}])
-        init_args_text = ', '.join(['self'] + init_args[0])
+        init_args_text = ', '.join(['self', 'token'] + init_args[0])
 
         for key in init_args[1]:
             default = init_args[1][key]
@@ -170,7 +203,7 @@ class MotherBot:
 
         code = ''
         if 0 in types:
-            additional_code = NotificationsFunctional._notifications_functional(self.db_cursor, self.log, **kwargs)
+            additional_code = self.notifications.functional(**kwargs)
             init_code += additional_code['init']
             code += additional_code['code']
 
@@ -180,29 +213,25 @@ class MotherBot:
         if 2 in types:
             pass
 
-        response = self.db_cursor.execute('SELECT code FROM fragments WHERE id = "code_start"').fetchone()
-
-        class_code = response[0].format(modules=modules, class_name=class_name, class_doc=class_doc, init_code=init_code, init_args=init_args_text)
+        class_code = self.notifications.get_code('code_start').format(modules=modules, class_name=class_name, class_doc=class_doc, init_code=init_code, init_args=init_args_text)
         class_code += code
 
         launch_сode = kwargs.get('launch_сode')
         if not launch_сode is None:
             launch_сode = self._format_code(launch_сode, 4)
-
-            response = self.db_cursor.execute('SELECT code FROM fragments WHERE id = "launch"').fetchone()
-            class_code += response[0].format(own_code=launch_сode)
+            class_code += self.notifications.get_code('launch').format(own_code=launch_сode)
 
         with open('bots/' + file_name + '.py', 'w', encoding='utf-8') as file:
             file.write(class_code)
 
 
-    def _format_code(self, code:str, spaces:int) -> str:
+    def _format_code(self, unformatted_code:str, spaces:int) -> str:
         '''Adds the specified number of spaces to each line of code'''
 
-        unformatted_code = code.replace('\t', '    ')
         code = ''
         for line in unformatted_code.split('\n'):
-            code += ' '*spaces + line + '\n'
+            code_line = ' '*spaces + line
+            code += code_line.rstrip() + '\n'
 
         return code
 
